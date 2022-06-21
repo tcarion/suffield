@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.3
+# v0.19.0
 
 using Markdown
 using InteractiveUtils
@@ -46,7 +46,7 @@ The **first sheet** contains all the required **information about the releases**
 """
 
 # ╔═╡ 88f578e0-e4e8-463c-af62-68bfa670a40c
-releases = DataFrame(CSV.File("releases_ds/releases.csv"))
+releases = DataFrame(CSV.File("releases_ds/old/releases.csv"))
 
 # ╔═╡ 946af5a2-b69d-410f-8ab2-ab4e6296eb39
 md"""
@@ -168,7 +168,8 @@ A NetCDF file is basically divided into **Dimensions**, **Variables** (or **Laye
 
 # ╔═╡ 7f203bac-93bd-4ce5-ae2b-166f8bf70faf
 begin
-	outfile_path = "flexpart_outputs/grid_conc_20140811000000_nest_CH4.nc"
+	# outfile_path = "flexpart_outputs/grid_conc_20140811000000_nest_NH3_short.nc"
+	outfile_path = "flexpart_outputs/grid_conc_20140813211000_nest_NH3_short.nc"
 	fpoutput = RasterStack(outfile_path)
 end
 
@@ -223,13 +224,13 @@ relindex = dims(conc, Dim{:pointspec}) |> collect
 
 # ╔═╡ eafec9dd-99dc-4689-99b4-0ac3aee2af51
 begin
-	plotabledates = DateTime(2014,8,11,22,00):Dates.Minute(15):DateTime(2014,8,12,4) |> collect
+	plotabledates = DateTime(2014,8,13,20,00):Dates.Minute(15):DateTime(2014,8,14,2) |> collect
 	dateselect = [d => Dates.format(d, "yyyymmddTHH:MM:SS") for d in plotabledates]
 end;
 
 # ╔═╡ 0030d778-f912-4453-9aac-1cafe321a540
 md"""
-We can **slice the data through specific dimensions** with the following syntax. Here we want the spatial concentration at $(@bind heighttoplot Select(heights, default = 50.))m for the release nbr $(@bind reltoplot Scrubbable(relindex; default=2))) at $(@bind datetoplot Select(dateselect, default = DateTime(2014,8,12,2))):
+We can **slice the data through specific dimensions** with the following syntax. Here we want the spatial concentration at $(@bind heighttoplot Select(heights, default = heights[1]))m for the release nbr $(@bind reltoplot Scrubbable(relindex; default=2))) at $(@bind datetoplot Select(dateselect, default = dateselect[1])):
 """
 
 # ╔═╡ 9b693aca-2261-48fe-b105-94b4bf8a7133
@@ -282,19 +283,16 @@ md"""
 Now let's plot **the vertical concentration** for $(datetoplot) at a specific location lon = $(@bind loclon Scrubbable(longitudes, default = -111.4)), lat = $(@bind loclat Scrubbable(latitudes, default = 50.4)). We can also select for which releases we want to plot.
 """
 
-# ╔═╡ 381f848e-5944-47be-a872-57789f997a55
-heightatloc = fpoutput[:ORO][X(Near(loclon)), Y(Near(loclat))]
+# ╔═╡ 6467821f-5151-4f6c-9bbe-0342a2557aea
+md"""
+relvertcut = $(@bind relvertcut RangeSlider(1:length(relindex)))
+"""
 
 # ╔═╡ ab08360b-6f45-4095-98f1-9e34e17b9d5f
 let
 	pconc = plotconc(twodconc)
 	Plots.plot!(pconc, (loclon, loclat), marker = :circle, label = "vertcut")
 end
-
-# ╔═╡ 6467821f-5151-4f6c-9bbe-0342a2557aea
-md"""
-relvertcut = $(@bind relvertcut RangeSlider(1:length(relindex)))
-"""
 
 # ╔═╡ a764002c-fc81-4b8d-92a6-f71c61548494
 md"""
@@ -305,7 +303,7 @@ We can also observe the plume moving by creating a simple animation:
 @gif for date in DateTime(2014,8,11,22,00,00):Dates.Minute(15):DateTime(2014,8,12,5,00,00)
 	toplot = view(conc, 
 		Ti(At(date)),
-		Dim{:height}(At(50.)),
+		Dim{:height}(At(heighttoplot)),
 		Dim{:pointspec}(2),
 		Dim{:nageclass}(1),
 	)
@@ -357,7 +355,7 @@ The **number** after "RELEASE" corresponds to the **:id column** in the releases
 """
 
 # ╔═╡ e0a9d60c-f3a5-4853-9431-a043ce980622
-getcomment(data, pointspec) = reduce(*, data[:RELCOM][:, pointspec] |> collect)
+getcomment(data, pointspec::Int) = reduce(*, data[:RELCOM][:, pointspec] |> collect)
 
 # ╔═╡ 468d54cd-7f8f-4294-b557-c6624dd6ddf2
 begin
@@ -378,7 +376,7 @@ begin
 end
 
 # ╔═╡ 41e313a1-d162-48ae-9f2d-9f04a90b4812
-getcomment(fpoutput, reltoplot::Int)
+getcomment(fpoutput, reltoplot)
 
 # ╔═╡ 6a1113b0-f8bb-4c16-9ad7-016ea2fd9ee1
 md"""
@@ -1377,9 +1375,9 @@ version = "1.7.2"
 
 [[Qt5Base_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "xkbcommon_jll"]
-git-tree-sha1 = "c6c0f690d0cc7caddb74cef7aa847b824a16b256"
+git-tree-sha1 = "ad368663a5e20dbb8d6dc2fddeefe4dae0781ae8"
 uuid = "ea2cea3b-5b76-57ae-a6ef-0a8af62496e1"
-version = "5.15.3+1"
+version = "5.15.3+0"
 
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
@@ -1911,10 +1909,9 @@ version = "0.9.1+5"
 # ╠═e5f548bc-d857-461a-8292-811d0eb42f6d
 # ╠═c2fb94a2-e4a3-41ed-b56f-a1456612417b
 # ╟─0f30699a-0f51-4ccf-ad57-9448a9c4530a
-# ╟─381f848e-5944-47be-a872-57789f997a55
-# ╠═ab08360b-6f45-4095-98f1-9e34e17b9d5f
 # ╟─6467821f-5151-4f6c-9bbe-0342a2557aea
-# ╠═468d54cd-7f8f-4294-b557-c6624dd6ddf2
+# ╟─468d54cd-7f8f-4294-b557-c6624dd6ddf2
+# ╠═ab08360b-6f45-4095-98f1-9e34e17b9d5f
 # ╟─a764002c-fc81-4b8d-92a6-f71c61548494
 # ╠═2f80013d-7570-40e3-8cf1-dfda09451c12
 # ╟─f0f6ebcf-3b27-4ce6-9341-60d7abdeb5e0
