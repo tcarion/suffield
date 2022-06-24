@@ -1,12 +1,25 @@
 
 using Flexpart
+using Rasters
+using DataFrames
+using Dates
 
-function read_receptor(fppath, num_receptor = 1; rectype = "conc")
-    fpdir = FlexpartDir(fppath)
+function fread(f::IO, n::Int, T::Type)
+    [Base.read(f, t) for t in fill(T, n)]
+end
+
+"""
+    read_receptor(fpdir::FlexpartDir, num_receptor = 1; rectype = "conc")
+If `rectype` == "conc", units are ng/m³
+If `rectype` == "pptv", units are pptv
+
+"""
+function read_receptor(fpdir::FlexpartDir, num_receptor = 1; rectype = "conc")
+
     
     stack = RasterStack(OutputFiles(fpdir)[1].path)
     dates = dims(stack, Ti)
-    
+    t0 = dates[1] - Second(metadata(stack)[:loutstep])
     receptor_path = joinpath(fpdir[:output], "receptor_"*rectype)
     num_receptor = 1
     
@@ -34,9 +47,10 @@ function read_receptor(fppath, num_receptor = 1; rectype = "conc")
         rl = fread(fb, 2, Int32)
     end
     close(fb)
-    times, rec_dump
+    times = t0 .+ Second.(times)
+    df = DataFrame(time=times)
+    df[!, Symbol(rectype)] = rec_dump
+    df
 end
 
-function fread(f::IO, n::Int, T::Type)
-    [Base.read(f, t) for t in fill(T, n)]
-end
+read_receptor(fppath::String, num_receptor = 1; rectype = "conc") = read_receptor(FlexpartDir(fppath), num_receptor; rectype)
