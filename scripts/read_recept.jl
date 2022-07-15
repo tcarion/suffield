@@ -40,11 +40,18 @@ function read_receptor(fpdir::FlexpartDir, num_receptor = 1; rectype = "conc")
     rec_dump = Float32[]
     times = Int32[]
     for _ in 1:length(dates)-1
-        push!(times, fread(fb, 1, Int32)...)
-        rl = fread(fb,2, Int32)
-    
-        push!(rec_dump, fread(fb, num_receptor, Float32)...)
-        rl = fread(fb, 2, Int32)
+        try
+            push!(times, fread(fb, 1, Int32)...)
+            rl = fread(fb,2, Int32)
+        
+            push!(rec_dump, fread(fb, num_receptor, Float32)...)
+            rl = fread(fb, 2, Int32)
+        catch e
+            if e isa EOFError
+                break
+            end
+        end
+
     end
     close(fb)
     times = t0 .+ Second.(times)
