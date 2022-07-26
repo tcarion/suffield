@@ -5,7 +5,7 @@ relpar = ReleaseParams(h = 30, Q = 5, u = 2)
 
 params = GaussianPlumeParams(release = relpar)
 
-params.stabilities = Set([D])
+params.stabilities = Stability("D")
 
 xs = range(0, 2500)
 

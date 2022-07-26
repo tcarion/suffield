@@ -17,18 +17,34 @@ end
 # ╔═╡ a871df8e-0277-11ed-1ac3-0106a023df4c
 begin
 	using Pkg
-	Pkg.activate(".")
+	Pkg.activate("..")
 	using Flexpart
 	using Rasters
 	using Plots
 	using PlutoUI
 end
 
+# ╔═╡ 205a6260-2a3f-4c5d-9ce8-4df1e4070a53
+cd("..")
+
 # ╔═╡ c274755b-cd66-49bd-a7be-acdc1603f56b
 @bind fppath1 Select(filter(isdir, readdir("flexpart_outputs", join = true)))
 
 # ╔═╡ 1a230376-cb8d-4479-bbb8-9ac5141043a0
 @bind fppath2 Select(filter(isdir, readdir("flexpart_outputs", join = true)))
+
+# ╔═╡ 7c27ff80-e05d-4177-b645-aa672514bec3
+begin
+	outputs1 = OutputFiles(FlexpartDir(fppath1))
+	outputs2 = OutputFiles(FlexpartDir(fppath2))
+end
+
+# ╔═╡ e1661096-2527-4566-bbc1-03ec66cf15f2
+md"""
+Output 1: $(@bind output1 Select(OutputFiles(FlexpartDir(fppath1))))
+
+Output 2: $(@bind output2 Select(OutputFiles(FlexpartDir(fppath2))))
+"""
 
 # ╔═╡ c01f68cd-e268-459d-9ed1-5517594fcecc
 @bind outtype Select([1 => "mixing", 2 => "pptv"])
@@ -38,8 +54,8 @@ layername = outtype == 1 ? :spec001_mr : :spec001_pptv
 
 # ╔═╡ 77589840-0d2c-42aa-964d-59cb94f7f6a1
 begin
-	stack1 = RasterStack(OutputFiles(FlexpartDir(fppath1))[1].path)
-	stack2 = RasterStack(OutputFiles(FlexpartDir(fppath2))[1].path)
+	stack1 = RasterStack(output1.path)
+	stack2 = RasterStack(output2.path)
 end
 
 # ╔═╡ 555b5a1c-acce-4de4-96c8-c0cdb61b2381
@@ -179,6 +195,15 @@ begin
 	ts2 = selection(zoomds2, height2, rels2, xrange2, yrange2)
 end;
 
+# ╔═╡ e8e43b43-5e3d-4d9e-b5d2-3718be9ddbf6
+vertical(raster, itime, rels, xloc, yloc) = sum(view(raster,
+		Ti(itime),
+		Dim{:nageclass}(1),
+		Dim{:pointspec}(rels),
+		X(At(xloc)),
+		Y(At(yloc)),
+	), dims = Dim{:pointspec})
+
 # ╔═╡ 7d6bdded-576d-4403-85e9-7b9de962bebd
 timeseries(raster, height, rels, ilon, ilat) = view(raster,
 		Dim{:height}(At(height)),
@@ -228,13 +253,20 @@ begin
 	end
 end;
 
+# ╔═╡ b17a3c04-968b-407a-9274-e6cf664a0679
+(reclon1, reclat1)
+
+# ╔═╡ 23edf9bd-e238-4925-a515-864091ecf20d
+reclat1
+
 # ╔═╡ 9057c7eb-9576-4ee7-82f5-8a54e29501d1
 begin
+	gr()
 	horiz1 = selection(zoomds1, height1, itime1, rels1, xrange1, yrange1)
 	horiz2 = selection(zoomds2, height2, itime2, rels2, xrange2, yrange2)
 	l = @layout [a ; b]
-	p1 = horizplot(horiz1)
-	p2 = horizplot(horiz2)
+	p1 = horizplot(horiz1 * 1e-6)
+	p2 = horizplot(horiz2 * 1e-6)
 	# plotpoint!(p1, zoomds1, ireclon, ireclat)
 	# plotpoint!(p2, zoomds2, ireclon, ireclat)
 	plot!(p1, (reclon1, reclat1), marker = :dot, markersize= :4, label= false)
@@ -246,8 +278,16 @@ begin
 	plot(p1, p2, layout = l)
 end
 
+# ╔═╡ 5d1dd1de-1e19-4bd3-8283-947b81e42098
+begin
+	deltalon = rellon - reclon1
+	deltalat = rellat - reclat1
+	sqrt(deltalon.^2 + deltalat.^2) * 111e3
+end
+
 # ╔═╡ d1f99547-c214-48b8-8ed6-6559c23d6c2d
 begin
+	plotly()
 	tsloc1 = view(ts1, 
 		X(At(reclon1)),
 		Y(At(reclat1)),
@@ -257,23 +297,47 @@ begin
 		Y(Near(reclat2)),
 	)
 	plot(legend = :topleft,
-		xrotation = 10
+		xrotation = 10,
+		ylabel = "mg m-3"
 	)
-	plot!(dims(tsloc1, Ti) |> collect, collect(tsloc1[Ti(:)]) .* 1e-6,
+	plot!(dims(tsloc1, Ti) |> collect, collect(tsloc1[Ti(:)]) * 1e-6,
 		label = basename(fppath1),
+		marker = :square,
+		markersize = 0.2,
 	)
-	plot!(dims(tsloc2, Ti) |> collect, collect(tsloc2[Ti(:)]) .* 1e-6,
+	plot!(dims(tsloc2, Ti) |> collect, collect(tsloc2[Ti(:)]) * 1e-6,
 		label = basename(fppath2),
+		marker = :square,
+		markersize = 0.2,
+	)
+end
+
+# ╔═╡ 267f3a56-f967-4725-8100-a7d4ad9d54fb
+begin
+	vertcut1 = vertical(zoomds1, itime1, rels1, reclon1, reclat1)
+	vertcut2 = vertical(zoomds2, itime2, rels2, reclon2, reclat2)
+	pvcut = plot(title = "vertical concentration"
+		, xlabel = "mg / m³"
+		, ylabel = "height [m]"
+	)
+	plot!(pvcut, vertcut1[Dim{:height}()] * 1e-6, dims(vertcut1, Dim{:height}) |> collect,
+		marker = :dot
+	)
+	plot!(vertcut2[Dim{:height}()] * 1e-6, dims(vertcut2, Dim{:height}) |> collect,
+		marker = :dot
 	)
 end
 
 # ╔═╡ Cell order:
 # ╠═a871df8e-0277-11ed-1ac3-0106a023df4c
+# ╠═205a6260-2a3f-4c5d-9ce8-4df1e4070a53
 # ╠═c274755b-cd66-49bd-a7be-acdc1603f56b
 # ╠═1a230376-cb8d-4479-bbb8-9ac5141043a0
+# ╠═7c27ff80-e05d-4177-b645-aa672514bec3
+# ╟─e1661096-2527-4566-bbc1-03ec66cf15f2
 # ╠═c01f68cd-e268-459d-9ed1-5517594fcecc
 # ╠═5980612c-0a5d-4d78-bdca-56a32957d038
-# ╟─77589840-0d2c-42aa-964d-59cb94f7f6a1
+# ╠═77589840-0d2c-42aa-964d-59cb94f7f6a1
 # ╠═555b5a1c-acce-4de4-96c8-c0cdb61b2381
 # ╟─13f3b47b-122e-42f1-9016-53408662c733
 # ╠═4d30170c-389a-4629-9008-1180eaa05f96
@@ -292,16 +356,21 @@ end
 # ╟─179b19bd-340a-4f82-8a4a-29c9237387ba
 # ╟─9735b0fe-8c08-4afd-9a01-4d98b831d747
 # ╟─905354bd-9576-4875-a6a7-a60ea94e6584
+# ╠═b17a3c04-968b-407a-9274-e6cf664a0679
+# ╠═23edf9bd-e238-4925-a515-864091ecf20d
 # ╟─4e79aebd-c4d2-4f07-8a18-660151f0827d
 # ╟─4c4e871e-e2c8-4fbe-afd8-96924bbdc27d
 # ╟─608b68b3-5413-4d1c-8832-5c757bd34f32
-# ╟─9057c7eb-9576-4ee7-82f5-8a54e29501d1
-# ╟─87560abe-da83-4f21-aace-8bb6f1561124
+# ╠═9057c7eb-9576-4ee7-82f5-8a54e29501d1
+# ╠═5d1dd1de-1e19-4bd3-8283-947b81e42098
+# ╠═87560abe-da83-4f21-aace-8bb6f1561124
 # ╠═d1f99547-c214-48b8-8ed6-6559c23d6c2d
+# ╠═267f3a56-f967-4725-8100-a7d4ad9d54fb
 # ╠═4366cbb7-29c3-49ac-9bf1-844c24d20fa0
 # ╠═4caab323-6e33-4745-bb77-e56be6e62bb7
 # ╠═89982c51-0aa3-48a0-adc7-cc92323ab211
+# ╠═e8e43b43-5e3d-4d9e-b5d2-3718be9ddbf6
 # ╠═7d6bdded-576d-4403-85e9-7b9de962bebd
 # ╠═3a4abd5d-6acb-4a1f-b4aa-b9acfe854567
 # ╟─ab4a7e1b-604b-464e-9f24-2ffad6ad9b12
-# ╟─02757750-9c99-4a5b-86af-fab8cf8856ca
+# ╠═02757750-9c99-4a5b-86af-fab8cf8856ca
