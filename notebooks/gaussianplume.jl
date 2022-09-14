@@ -17,8 +17,8 @@ end
 # ╔═╡ 94e32f70-0409-11ed-0c62-93bd2ed23345
 begin
 	using Pkg
-	Pkg.activate("..")
-	using GaussianPlume
+	Pkg.activate(".")
+	using GaussianDispersion
 	using XLSX
 	using DataFrames
 	using PlutoUI
@@ -73,13 +73,13 @@ href: $(@bind href Slider(range(0.1, 100, 100), show_value = true))
 
 stability: $(@bind stab Select([:A, :B, :C, :D, :E, :F]))
 
-terrain: $(@bind terrain Select([Rural, Urban]))
+terrain: $(@bind terrain Select([Rural(), Urban()]))
 """
 
 # ╔═╡ 8129e797-c070-49d1-8fdb-d8eeb0a7eff8
 begin
 	stability = Stabilities(stab)
-	plume = GaussianPlumeParams()
+	plume = GaussianDispersionParams()
 	plume.release = ReleaseParams(h = href, Q = Q, u = u)
 	plume.stabilities = stability
 	plume.terrain = terrain
@@ -182,7 +182,7 @@ quiver([0, 0],[0, 0],quiver=([u_grib, u_obs],[v_grib, v_obs]), xlims=[-5, 5], yl
 # ╠═5eb03efe-d38d-4098-9d8d-60d4e9fcf6c7
 # ╟─7752ad2d-464e-4a6a-bf29-8cda5ce05d41
 # ╠═e7d55336-155c-49c7-af5a-428175aea98d
-# ╟─334d4c78-07e6-489c-9558-1fd429c0cce9
+# ╠═334d4c78-07e6-489c-9558-1fd429c0cce9
 # ╠═8129e797-c070-49d1-8fdb-d8eeb0a7eff8
 # ╠═9cf8c8ba-047c-47e4-9ca5-5c27c2472223
 # ╟─b34cf39b-b300-440f-b76e-08035cec682c
