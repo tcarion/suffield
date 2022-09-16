@@ -46,7 +46,7 @@ gr()
 inputfile = "/home/tcarion/Documents/suffield/postprocess/inputs/ENH14081321"
 
 # ╔═╡ e4d5cfac-4e4f-4ec7-83fb-e975a6a3925e
-fpoutputfile = "/home/tcarion/Documents/suffield/postprocess/flexpart_outputs/NH3_132150_140000_ctl10_100m/output/grid_conc_20140813215400.nc"
+fpoutputfile = "/home/tcarion/Documents/suffield/postprocess/flexpart_outputs/NH3_132150_140000_ctl10_500m/output/grid_conc_20140813215400.nc"
 
 # ╔═╡ 7004bd79-9961-4301-adec-1f1fa167e077
 fpoutput = RasterStack(fpoutputfile)
@@ -109,14 +109,11 @@ atpinput = Atp45Input(
 	wind,
 	:BOM,
 	:simplified,
-	ATP45.Stable
+	ATP45.Neutral
 )
 
 # ╔═╡ e94e827b-fd27-42f1-a9ce-dc1f0399be6f
 atp_res = run_chem(atpinput)
-
-# ╔═╡ 4a7a1b80-2d10-4511-b0c0-e6ed997c3bca
-ATP45.resultplot(atp_res)
 
 # ╔═╡ f80a1959-005b-4132-83ca-9bf6dc2de5ef
 begin
@@ -136,13 +133,27 @@ zoomed_x = (fp_lons[xzs[1]])..(fp_lons[xzs[end]])
 # ╔═╡ e638da5c-c3b3-4e0e-bca5-668bd2f24c85
 zoomed_y = (fp_lats[yzs[1]])..(fp_lats[yzs[end]])
 
+# ╔═╡ 721036c6-9540-4817-b048-5fab7060a149
+function remove_outliers(A::AbstractArray, thres = 6)
+    out = copy(A)
+    R = CartesianIndices(A)
+    Ifirst, Ilast = first(R), last(R)
+    I1 = oneunit(Ifirst)
+	for I in R
+		ismissing(A[I]) && continue
+		sur_indices = max(Ifirst, I-I1):min(Ilast, I+I1)
+		n = count(ismissing, A[sur_indices])
+		if n >= thres
+	        out[I] = missing
+		end
+	end
+    out
+end
+
 # ╔═╡ 2de33e35-b292-4cc6-bc6c-5120fb797a47
 function mask_thres(A, thres)
 	replace(x -> !ismissing(x) && x < thres ? missing : x, A)
 end
-
-# ╔═╡ 88be09c2-f0be-445e-8067-64501ed34328
-fp_lons[2] - fp_lons[1]
 
 # ╔═╡ 207c0dd9-b748-4a3a-8b67-6d2ca8b71fa3
 function make_range(r, s)
@@ -162,17 +173,17 @@ end
 srast = create_rast(fp_lons, fp_lats, 0.001)
 
 # ╔═╡ 0f840289-4aea-40e0-8754-41531de3177a
-function plot_fp(conc)
+function plot_fp(conc; lim = 5000, args...)
 	reftime = refdims(conc, Ti) |> collect |> first
 	after_rel = canonicalize(reftime - release_start)
 	# toplot = trim(replace(conc, 0. => missing) ./ released_mass ./ 1e3)
 	toplot = trim(replace(conc, 0. => missing))
-	heatmap(toplot, levels=3,
-		clim = (0, maximum(skipmissing(toplot))),
-		c = :thermal,
+	contour(toplot, levels=1,
+		clim = (lim, lim + 0.1),
 		title = "time after release = $after_rel",
 		xlabel = "",
-		ylabel = "",
+		ylabel = "";
+		NamedTuple(args)...
 	)
 end
 
@@ -200,18 +211,46 @@ dims(horiz_spec, Y)
 # ╔═╡ d88ebe20-a945-49b4-a062-bdaca95739fc
 horiz_spec_filtered = replace(horiz_spec, 0. => NaN);
 
+# ╔═╡ 758be6e3-e0b9-4808-be4f-77ad49d75e99
+trimed_horiz = trim(replace(horiz_spec, 0. => missing))
+
 # ╔═╡ 413a8a4b-7a7c-4f6e-b40f-775e8820aaea
 begin
 	# contourf(replace(log10.(horiz_spec), -Inf => 0.0))
 	# contourf(replace(horiz_spec, -Inf => 0.0), levels=3)
 	# heatmap(replace(horiz_spec, -Inf => 0.0) ./ released_mass ./ 1e3, levels=3, c = :bilbao)
-	plot_fp(horiz_spec)
-	ATP45.resultplot!(atp_res)
+	# plot_fp(no_outliers)
+	plot_fp(trimed_horiz; linewidth = 2, lim = 800000)
+	# plot_fp(no_outliers; linewidth = 2, lim = 8000)
+	ATP45.resultplot!(atp_res, colorbar = false)
 	plot!(aspect_ratio = 1., xlim=[-110.85, -110.55], ylim=[50.2, 50.4])
 end
 
-# ╔═╡ 758be6e3-e0b9-4808-be4f-77ad49d75e99
-trimed_horiz = trim(replace(horiz_spec, 0. => missing))
+# ╔═╡ 18921a2e-7c28-443a-b770-c95bf76c80b7
+no_outliers = trim(remove_outliers(remove_outliers(trimed_horiz, 2), 2))
+
+# ╔═╡ 9a3a6196-0da6-4725-9f64-e2f9cc9730ba
+begin
+	conc = no_outliers
+	reftime = refdims(conc, Ti) |> collect |> first
+	after_rel = canonicalize(reftime - release_start)
+	# toplot = trim(replace(conc, 0. => missing) ./ released_mass ./ 1e3)
+	toplot = trim(replace(conc, 0. => missing))
+	lim = 3000
+	contour(toplot, levels=1,
+		clim = (lim, lim + .1),
+		color = :red,
+		title = "time after release = $after_rel",
+		xlabel = "",
+		ylabel = "",
+		linestyle = :dot,
+		fillalpha = 1,
+		linewidth = 3
+	)
+end
+
+# ╔═╡ 38875507-7419-49b5-bdec-383cdb62ef97
+plot(heatmap(no_outliers), heatmap(trimed_horiz))
 
 # ╔═╡ 0da267bc-3fcc-442f-b0ff-d9c41798c769
 max_masked = maximum(horiz_spec)
@@ -222,17 +261,8 @@ max_masked = maximum(horiz_spec)
 # ╔═╡ e2929645-e01a-4fc1-ac48-f9767b367a02
 masked_trimed_horiz = mask_thres(trimed_horiz, thres)
 
-# ╔═╡ 592c959d-b5ac-490a-80ce-77b1c6a01520
-plot_fp(masked_trimed_horiz)
-
-# ╔═╡ e6d1d241-5c0f-4ddb-a3c0-fe50ef2d2081
-resampled = resample(horiz_spec, srast)
-
-# ╔═╡ 28df4e20-d602-4369-ae80-507a78ea242c
-resample(horiz_spec, 0.01)
-
-# ╔═╡ 0a783146-2002-4a24-9944-d2e0188809f7
-horiz_spec
+# ╔═╡ 91137188-fc52-440c-8b6d-8024a1b2829f
+plot(plot_fp(horiz_spec; color = :red, lim = 2003), plot_fp(no_outliers))
 
 # ╔═╡ bb07fc1a-921b-4c86-a6af-bca2df22b293
 function flatwind(u, v, Xs, Ys)
@@ -329,7 +359,6 @@ quiver
 # ╠═1db46d28-b8de-4c85-b9b8-a206cd628201
 # ╠═fa503a93-15fb-4e55-b985-26090bd3d72b
 # ╠═e94e827b-fd27-42f1-a9ce-dc1f0399be6f
-# ╠═4a7a1b80-2d10-4511-b0c0-e6ed997c3bca
 # ╠═f80a1959-005b-4132-83ca-9bf6dc2de5ef
 # ╠═e38f5f8a-900a-4ab7-a096-18a3605de953
 # ╠═e88e1cae-5349-427d-8c50-eb23c897a60f
@@ -345,15 +374,15 @@ quiver
 # ╠═2bca6b8c-da82-40e7-833e-960b2871b2dd
 # ╠═e2929645-e01a-4fc1-ac48-f9767b367a02
 # ╠═0da267bc-3fcc-442f-b0ff-d9c41798c769
-# ╠═592c959d-b5ac-490a-80ce-77b1c6a01520
-# ╠═2de33e35-b292-4cc6-bc6c-5120fb797a47
-# ╠═e6d1d241-5c0f-4ddb-a3c0-fe50ef2d2081
-# ╠═28df4e20-d602-4369-ae80-507a78ea242c
-# ╠═88be09c2-f0be-445e-8067-64501ed34328
-# ╠═0a783146-2002-4a24-9944-d2e0188809f7
 # ╠═95bd6435-bf2e-4d90-973a-50e60d0c373e
+# ╠═18921a2e-7c28-443a-b770-c95bf76c80b7
+# ╠═38875507-7419-49b5-bdec-383cdb62ef97
+# ╠═721036c6-9540-4817-b048-5fab7060a149
+# ╠═2de33e35-b292-4cc6-bc6c-5120fb797a47
 # ╠═bd539b7d-2ebc-448d-9775-f1c45b58a64b
 # ╠═207c0dd9-b748-4a3a-8b67-6d2ca8b71fa3
+# ╠═91137188-fc52-440c-8b6d-8024a1b2829f
+# ╠═9a3a6196-0da6-4725-9f64-e2f9cc9730ba
 # ╠═0f840289-4aea-40e0-8754-41531de3177a
 # ╠═887c90f4-cfa0-4053-bdf2-a95a25db69ed
 # ╠═bb07fc1a-921b-4c86-a6af-bca2df22b293
